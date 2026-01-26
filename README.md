@@ -1,8 +1,8 @@
-# 🎨 Obra Colectiva Digital - Interactive Art Installation
+#  Obra Colectiva Digital - Interactive Art Installation
 
 A collaborative digital art installation where each vote from the audience progressively reveals a hidden artwork. Built for Raspberry Pi kiosk displays with real-time Firebase synchronization.
 
-## ✨ Features
+##  Features
 
 - **Progressive Reveal**: Artwork unveils piece-by-piece with each vote
 - **Hexagonal Tessellation**: Beautiful hexagonal tile pattern algorithm
@@ -12,13 +12,13 @@ A collaborative digital art installation where each vote from the audience progr
 - **Responsive Design**: Adapts to any screen size (HD, 4K, projectors)
 - **Visual Feedback**: Animated notifications, vote counters, and tile highlighting
 
-## 🖼️ Live Demo
+##  Live Demo
 
 **Production Viewer**: Open [viewer-production.html](viewer-production.html) in a browser  
 **Development Viewer**: Open [viewer.html](viewer.html) (includes test controls)  
 **Manifest Generator**: Open [manifest.html](manifest.html) to create new artworks
 
-## 🚀 Quick Start
+##  Quick Start
 
 ### 1. Configure Firebase
 Update the `CONFIG.OBRA_ID` in your viewer files to match your artwork ID.
@@ -38,7 +38,7 @@ Update the `CONFIG.OBRA_ID` in your viewer files to match your artwork ID.
 ### 4. Deploy to Raspberry Pi
 Follow the complete guide in [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md)
 
-## 📁 Project Structure
+##  Project Structure
 
 ```
 digital_art/
@@ -53,7 +53,7 @@ digital_art/
 └── .gitignore              # Git ignore rules
 ```
 
-## 🛠️ Technology Stack
+##  Technology Stack
 
 - **Frontend**: Pure HTML5, CSS3, JavaScript (ES6+)
 - **Rendering**: [PixiJS v8.1.1](https://pixijs.com/) (WebGL)
@@ -61,7 +61,7 @@ digital_art/
 - **Forms**: Google Forms + Apps Script
 - **Display**: Raspberry Pi 4/5 + Chromium Browser (Kiosk Mode)
 
-## 🎯 How It Works
+##  How It Works
 
 ```
 ┌─────────────────┐
@@ -89,7 +89,7 @@ digital_art/
 └─────────────────┘
 ```
 
-## 🔧 Configuration
+##  Configuration
 
 ### Firebase Setup
 1. Create project at [Firebase Console](https://console.firebase.google.com)
@@ -111,7 +111,7 @@ const CONFIG = {
 };
 ```
 
-## 📊 File Sizes & Performance
+##  File Sizes & Performance
 
 - **viewer-production.html**: ~35KB (minified: ~25KB)
 - **PixiJS**: ~1.2MB (CDN cached)
@@ -121,7 +121,7 @@ const CONFIG = {
 
 **Performance**: 60fps on Raspberry Pi 4, supports 1000+ tiles
 
-## 🎨 Hexagonal Algorithm Details
+##  Hexagonal Algorithm Details
 
 The manifest generator uses an optimized hexagonal tessellation:
 
@@ -139,7 +139,7 @@ columns = ceil(sqrt(desiredVotes × aspect × 1.2))
 rows = ceil(canvasHeight / verticalStep) + 1
 ```
 
-## 🖥️ Raspberry Pi Hardware Requirements
+##  Raspberry Pi Hardware Requirements
 
 - **Raspberry Pi 4** (4GB RAM) or **Raspberry Pi 5**
 - **MicroSD Card**: 32GB Class 10
@@ -147,18 +147,8 @@ rows = ceil(canvasHeight / verticalStep) + 1
 - **Display**: HDMI monitor/TV/projector
 - **Estimated Cost**: ~$83 USD
 
-See [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md) for complete hardware list.
 
-## 📱 Responsive Design
-
-The viewer automatically adapts to:
-- **HD Displays**: 1280×720, 1920×1080
-- **4K Displays**: 3840×2160
-- **Projectors**: Any resolution
-- **Touch Screens**: Works with touch (no interaction needed)
-- **Portrait/Landscape**: Maintains aspect ratio
-
-## 🧪 Testing
+##  Testing
 
 ### Development Mode
 `viewer.html` includes test controls:
@@ -172,67 +162,16 @@ The viewer automatically adapts to:
 - No debug panel
 - Professional appearance
 
-## 🚀 Deployment Options
-
-### Option A: Local File (Simple)
-- Copy `viewer-production.html` to Raspberry Pi
-- Launch with `file:///home/pi/viewer.html`
-- Works offline (except Firebase sync)
-
-### Option B: GitHub Pages (Recommended)
-- Push to GitHub repository
-- Enable GitHub Pages in settings
-- Update `start-kiosk.sh` with URL
-- Easier remote updates
-
-### Option C: Firebase Hosting
-- `firebase init hosting`
-- Deploy with `firebase deploy`
-- Same domain as your database
-
-## 🐛 Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| Tiles not revealing | Check Firebase connection, verify OBRA_ID match |
-| Image not loading | Verify manifest uploaded, check sourceDataUrl |
-| Votes not updating | Check Google Forms trigger, Apps Script logs |
-| Performance lag | Reduce tile count, lower image resolution |
-| Screen blanking | Run: `xset s off; xset -dpms` (on Pi) |
-
-See [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md#step-7-testing--troubleshooting) for complete troubleshooting guide.
-
-## 📝 License
-
-This project is open source. Feel free to use, modify, and distribute for artistic and educational purposes.
-
-## 👤 Author
+##  Author
 
 **Gabriel Guerra**  
 GitHub: [@GabrielGuerra06](https://github.com/GabrielGuerra06)
 
-## 🙏 Acknowledgments
+##  Acknowledgments
 
 - Built with [PixiJS](https://pixijs.com/)
 - Powered by [Firebase](https://firebase.google.com/)
-- Inspired by collaborative digital art installations
 
-## 📚 Documentation
-
-- [RASPBERRY_PI_SETUP.md](RASPBERRY_PI_SETUP.md) - Complete Pi deployment guide
-- [manifest.html](manifest.html) - Manifest generator (open in browser)
-- [viewer.html](viewer.html) - Development viewer with docs in code
-- [viewer-production.html](viewer-production.html) - Production-ready viewer
-
-## 🔮 Future Enhancements
-
-- [ ] Multi-artwork playlist mode
-- [ ] Analytics dashboard
-- [ ] Mobile app for voting
-- [ ] Social media integration
-- [ ] Audio feedback on votes
-- [ ] Video reveal animations
 
 ---
 
-**Ready to create collaborative art? Start with `manifest.html` and bring your audience together! 🎨✨**
