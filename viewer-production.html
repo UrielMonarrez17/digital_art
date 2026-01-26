@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Obra Colectiva - Viewer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.1.1/pixi.min.js"></script>
+  <style>
+    html,body{margin:0;background:#ffffff;overflow:hidden}
+    #artFrame{
+      position:fixed;top:0;left:0;right:0;bottom:0;
+      border:30px solid transparent;
+      border-image:linear-gradient(135deg, #A0826D 0%, #8B6F47 50%, #6F5536 100%) 1;
+      box-shadow:inset 0 0 0 3px #654321, inset 0 0 30px rgba(0,0,0,0.15);
+      pointer-events:none;z-index:50;
+    }
+    #voteNotification{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                      background:rgba(76,175,80,0.95);color:white;padding:24px 48px;
+                      border-radius:12px;font:bold 32px sans-serif;z-index:100;
+                      box-shadow:0 8px 32px rgba(0,0,0,0.5);display:none;
+                      animation:votePopIn 0.6s cubic-bezier(0.68,-0.55,0.265,1.55);
+                      text-align:center}
+    #voteNotification .voterId{font-size:18px;margin-top:8px;opacity:0.9;font-weight:normal}
+    @keyframes votePopIn{
+      0%{transform:translate(-50%,-50%) scale(0);opacity:0}
+      70%{transform:translate(-50%,-50%) scale(1.1)}
+      100%{transform:translate(-50%,-50%) scale(1);opacity:1}
+    }
+    #voteCounter{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+                 font:bold 120px sans-serif;color:rgba(255,255,255,0.9);
+                 text-shadow:0 0 20px rgba(76,175,80,0.8);z-index:99;display:none;
+                 animation:counterPulse 0.5s ease-out}
+    @keyframes counterPulse{
+      0%{transform:translate(-50%,-50%) scale(0.5);opacity:0}
+      50%{transform:translate(-50%,-50%) scale(1.2)}
+      100%{transform:translate(-50%,-50%) scale(1);opacity:1}
+    }
+  </style>
+</head>
+<body>
+<div id="artFrame"></div>
+<div id="voteNotification">
+  <div>¡Gracias por votar! </div>
+  <div class="voterId" id="voterIdDisplay"></div>
+</div>
+<div id="voteCounter"></div>
+<script>
+(function() {
+  'use strict';
+
+  const CONFIG = {
+    OBRA_ID: 'obra-demo', // CHANGE THIS to match your manifest ID
+    FIREBASE: {
+      apiKey: "AIzaSyCupqNYoP5sNYrbCCcq11M-CJkqmdaXmz8",
+      authDomain: "arte-digital-d704e.firebaseapp.com",
+      databaseURL: "https://arte-digital-d704e-default-rtdb.firebaseio.com",
+      projectId: "arte-digital-d704e",
+    },
+    TIMING: {
+      VOTER_ID_SYNC_DELAY: 800,
+      VOTE_COUNTER_DISPLAY: 800,
+      VOTE_NOTIFICATION_DISPLAY: 2000,
+      HIGHLIGHT_AUTO_DISMISS: 10000,
+      PULSE_CYCLE_DURATION: 2000,
+    },
+    HIGHLIGHT: {
+      MIN_BORDER_WIDTH: 2.5,
+      MAX_BORDER_WIDTH: 3.5,
+      BORDER_COLOR: 0x4CAF50,
+      FILL_OPACITY: 0.05,
+      MIN_ALPHA: 0.4,
+      MAX_ALPHA: 0.7,
+    }
+  };
+
+  firebase.initializeApp(CONFIG.FIREBASE);
+  const db = firebase.database();
+
+  const state = {
+    manifest: null,
+    targetVotes: 100,
+    currentVotes: 0,
+    revealedCount: 0,
+    previousVoteCount: 0,
+    lastVoterId: '',
+    tileElements: [],
+    lastRevealedTiles: [],
+  };
+
+  let app = null;
+  let container = null;
+  let imageSprite = null;
+  let maskGraphics = null;
+  let highlightGraphics = null;
+  let pulseAnimationId = null;
+  let highlightTimeoutId = null;
+
+  function showVoteNotification(voteNumber, voterId = '') {
+    const notification = document.getElementById('voteNotification');
+    const counter = document.getElementById('voteCounter');
+    const voterIdDisplay = document.getElementById('voterIdDisplay');
+    
+    if (voterId) {
+      voterIdDisplay.textContent = `ID: ${voterId}`;
+      voterIdDisplay.style.display = 'block';
+    } else {
+      voterIdDisplay.style.display = 'none';
+    }
+    
+    counter.textContent = voteNumber;
+    counter.style.display = 'block';
+    setTimeout(() => counter.style.display = 'none', CONFIG.TIMING.VOTE_COUNTER_DISPLAY);
+    
+    notification.style.display = 'block';
+    setTimeout(() => notification.style.display = 'none', CONFIG.TIMING.VOTE_NOTIFICATION_DISPLAY);
+  }
+
+  async function initializePixiApp() {
+    app = new PIXI.Application();
+    await app.init({
+      width: window.innerWidth,
+      height: window.innerHeight,
+      background: '#ffffff',
+      antialias: true,
+      resolution: window.devicePixelRatio || 1,
+      autoDensity: true
+    });
+    
+    const canvas = app.canvas;
+    Object.assign(canvas.style, {
+      position: 'fixed',
+      top: '0',
+      left: '0',
+      width: '100vw',
+      height: '100vh',
+      display: 'block'
+    });
+    document.body.appendChild(canvas);
+
+    container = new PIXI.Container();
+    app.stage.addChild(container);
+    
+    loadManifestAndInitialize();
+  }
+
+  function initializeViewer() {
+    if (!app || !state.manifest || !state.manifest.meta || !state.manifest.meta.sourceDataUrl) {
+      console.error('Invalid manifest or missing source image');
+      return;
+    }
+
+    container.removeChildren();
+    imageSprite = null;
+    maskGraphics = null;
+
+    const imgW = state.manifest.meta.w || 1280;
+    const imgH = state.manifest.meta.h || 720;
+    
+    PIXI.Assets.load(state.manifest.meta.sourceDataUrl).then((texture) => {
+      imageSprite = new PIXI.Sprite(texture);
+      
+      const scaleX = app.screen.width / imgW;
+      const scaleY = app.screen.height / imgH;
+      const scale = Math.max(scaleX, scaleY);
+      
+      imageSprite.width = imgW * scale;
+      imageSprite.height = imgH * scale;
+      imageSprite.x = (app.screen.width - imageSprite.width) / 2;
+      imageSprite.y = (app.screen.height - imageSprite.height) / 2;
+      
+      maskGraphics = new PIXI.Graphics();
+      imageSprite.mask = maskGraphics;
+      
+      container.addChild(imageSprite);
+      container.addChild(maskGraphics);
+      
+      highlightGraphics = new PIXI.Graphics();
+      container.addChild(highlightGraphics);
+      
+      state.tileElements = state.manifest.elements || [];
+      
+      revealTiles();
+    }).catch(err => {
+      console.error('Error loading image:', err);
+    });
+  }
+
+  function revealTiles() {
+    if (!imageSprite || !maskGraphics || !state.manifest || !app) return;
+    
+    const totalTiles = state.tileElements.length;
+    const tilesPerVote = totalTiles / state.targetVotes;
+    
+    let tilesToReveal;
+    if (state.currentVotes >= state.targetVotes) {
+      tilesToReveal = totalTiles;
+    } else {
+      tilesToReveal = Math.ceil(state.currentVotes * tilesPerVote);
+    }
+    
+    maskGraphics.clear();
+    
+    if (tilesToReveal === 0) {
+      maskGraphics.rect(0, 0, 0, 0).fill(0xFFFFFF);
+      return;
+    }
+    
+    const imgW = state.manifest.meta.w || 1280;
+    const imgH = state.manifest.meta.h || 720;
+    const scaleX = app.screen.width / imgW;
+    const scaleY = app.screen.height / imgH;
+    const scale = Math.max(scaleX, scaleY);
+    const offsetX = (app.screen.width - imgW * scale) / 2;
+    const offsetY = (app.screen.height - imgH * scale) / 2;
+    
+    for (let i = 0; i < tilesToReveal; i++) {
+      const el = state.tileElements[i];
+      if (!el || !el.poly) continue;
+      
+      const poly = el.poly.map(([x, y]) => [
+        x * scale + offsetX,
+        y * scale + offsetY
+      ]).flat();
+      
+      maskGraphics.poly(poly).fill(0xFFFFFF);
+      
+      if (i >= state.revealedCount) {
+        state.lastRevealedTiles.push(el);
+      }
+    }
+    
+    state.revealedCount = tilesToReveal;
+    highlightNewTiles();
+  }
+  
+  function highlightNewTiles() {
+    if (!highlightGraphics || state.lastRevealedTiles.length === 0) return;
+    if (!app || !state.manifest) return;
+    
+    if (pulseAnimationId) {
+      cancelAnimationFrame(pulseAnimationId);
+      pulseAnimationId = null;
+    }
+    if (highlightTimeoutId) {
+      clearTimeout(highlightTimeoutId);
+      highlightTimeoutId = null;
+    }
+    
+    const startTime = performance.now();
+    const lastTile = state.lastRevealedTiles[state.lastRevealedTiles.length - 1];
+    
+    function animatePulse() {
+      const elapsed = performance.now() - startTime;
+      const cycle = (elapsed % CONFIG.TIMING.PULSE_CYCLE_DURATION) / CONFIG.TIMING.PULSE_CYCLE_DURATION;
+      const pulse = Math.sin(cycle * Math.PI * 2) * 0.5 + 0.5;
+      
+      const borderWidth = CONFIG.HIGHLIGHT.MIN_BORDER_WIDTH + 
+                         (CONFIG.HIGHLIGHT.MAX_BORDER_WIDTH - CONFIG.HIGHLIGHT.MIN_BORDER_WIDTH) * pulse;
+      const alpha = CONFIG.HIGHLIGHT.MIN_ALPHA + 
+                   (CONFIG.HIGHLIGHT.MAX_ALPHA - CONFIG.HIGHLIGHT.MIN_ALPHA) * pulse;
+      
+      highlightGraphics.clear();
+      
+      if (lastTile && lastTile.poly) {
+        const imgW = state.manifest.meta.w || 1280;
+        const imgH = state.manifest.meta.h || 720;
+        const scaleX = app.screen.width / imgW;
+        const scaleY = app.screen.height / imgH;
+        const scale = Math.max(scaleX, scaleY);
+        const offsetX = (app.screen.width - imgW * scale) / 2;
+        const offsetY = (app.screen.height - imgH * scale) / 2;
+        
+        const poly = lastTile.poly.map(([x, y]) => [
+          x * scale + offsetX,
+          y * scale + offsetY
+        ]).flat();
+        
+        highlightGraphics.poly(poly)
+          .fill({ color: CONFIG.HIGHLIGHT.BORDER_COLOR, alpha: CONFIG.HIGHLIGHT.FILL_OPACITY })
+          .stroke({ width: borderWidth, color: CONFIG.HIGHLIGHT.BORDER_COLOR, alpha });
+      }
+      
+      pulseAnimationId = requestAnimationFrame(animatePulse);
+    }
+    
+    animatePulse();
+    
+    highlightTimeoutId = setTimeout(() => {
+      highlightGraphics.clear();
+      if (pulseAnimationId) {
+        cancelAnimationFrame(pulseAnimationId);
+        pulseAnimationId = null;
+      }
+    }, CONFIG.TIMING.HIGHLIGHT_AUTO_DISMISS);
+  }
+
+  function onResize() {
+    if (!app) return;
+    app.renderer.resize(window.innerWidth, window.innerHeight);
+    if (imageSprite && state.manifest) {
+      const imgW = state.manifest.meta.w || 1280;
+      const imgH = state.manifest.meta.h || 720;
+      const scaleX = app.screen.width / imgW;
+      const scaleY = app.screen.height / imgH;
+      const scale = Math.max(scaleX, scaleY);
+      imageSprite.width = imgW * scale;
+      imageSprite.height = imgH * scale;
+      imageSprite.x = (app.screen.width - imageSprite.width) / 2;
+      imageSprite.y = (app.screen.height - imageSprite.height) / 2;
+      revealTiles();
+    }
+  }
+
+  function loadManifestAndInitialize() {
+    db.ref(`manifest/${CONFIG.OBRA_ID}`).once('value').then(snap => {
+      state.manifest = snap.val();
+      if (!state.manifest || !state.manifest.elements) {
+        console.error('No manifest found');
+        return;
+      }
+      
+      console.log(`Manifest loaded: ${state.manifest.elements.length} tiles`);
+      initializeViewer();
+    }).catch(err => {
+      console.error('Error loading manifest:', err);
+    });
+  }
+
+  db.ref(`stats/${CONFIG.OBRA_ID}`).on('value', snap => {
+    const stats = snap.val() || {};
+    
+    if (typeof stats.targetVotes === 'number') {
+      state.targetVotes = stats.targetVotes;
+    }
+    
+    const newVoteCount = stats.currentVotes || 0;
+    const newVoterId = stats.lastVoterId || '';
+    
+    if (newVoteCount > state.previousVoteCount) {
+      state.lastRevealedTiles = [];
+      
+      setTimeout(() => {
+        db.ref(`stats/${CONFIG.OBRA_ID}`).once('value').then(freshSnap => {
+          const freshStats = freshSnap.val() || {};
+          const confirmedVoterId = freshStats.lastVoterId || '';
+          showVoteNotification(newVoteCount, confirmedVoterId);
+        });
+      }, CONFIG.TIMING.VOTER_ID_SYNC_DELAY);
+    }
+    
+    state.previousVoteCount = newVoteCount;
+    state.currentVotes = newVoteCount;
+    state.lastVoterId = newVoterId;
+    
+    revealTiles();
+  });
+
+  window.addEventListener('resize', onResize);
+  
+  initializePixiApp();
+})();
+</script>
+</body>
+</html>

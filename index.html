@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Obra Colectiva - MVP</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Firebase compat (simple para comenzar) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+  <!-- PixiJS -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.1.1/pixi.min.js"></script>
+  <style>html,body{margin:0;background:#eee;overflow:hidden}</style>
+</head>
+<body>
+<script>
+
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCupqNYoP5sNYrbCCcq11M-CJkqmdaXmz8",
+  authDomain: "arte-digital-d704e.firebaseapp.com",
+  databaseURL: "https://arte-digital-d704e-default-rtdb.firebaseio.com",
+  projectId: "arte-digital-d704e",
+  storageBucket: "arte-digital-d704e.firebasestorage.app",
+  messagingSenderId: "452261258807",
+  appId: "1:452261258807:web:7cf951d46078d8ef5e41b2"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const OBRA_ID = "arte-digital-d704"; 
+
+// Estado
+let targetVotes = 100; // valor temporal hasta leer /stats
+let currentVotes = 0;
+
+// Pixi app
+const app = new PIXI.Application({ width: 1280, height: 720, background: '#EEEEEE' });
+document.body.appendChild(app.view);
+
+const layer = new PIXI.Container();
+app.stage.addChild(layer);
+
+// Función para “ver” impacto por voto: añadimos un círculo animado
+function addImpactBubble() {
+  const g = new PIXI.Graphics();
+  const col = PIXI.utils.string2hex(`#${Math.floor(Math.random()*0xFFFFFF).toString(16).padStart(6,'0')}`);
+  g.beginFill(col, 0.6).drawCircle(0,0, 6).endFill();
+  g.x = Math.random() * app.renderer.width;
+  g.y = Math.random() * app.renderer.height;
+  g.alpha = 0;
+  layer.addChild(g);
+
+  // animación simple
+  const start = performance.now();
+  function anim(){
+    const t = (performance.now() - start)/500; // 0-1 en 500ms
+    g.alpha = Math.min(1, t);
+    g.scale.set(0.5 + 0.5*Math.min(1,t));
+    if (t < 1) requestAnimationFrame(anim);
+  }
+  anim();
+}
+
+// Suscripción a /stats
+db.ref(`stats/${OBRA_ID}`).on('value', snap=>{
+  const val = snap.val() || {};
+  if (typeof val.targetVotes === 'number') targetVotes = val.targetVotes;
+  const prev = currentVotes;
+  currentVotes = val.currentVotes || 0;
+
+  // Por cada incremento de voto, muestra impacto visible
+  const inc = Math.max(0, currentVotes - prev);
+  for (let i=0;i<inc;i++) addImpactBubble();
+});
+
+// Inicializa /stats si no existe
+db.ref(`stats/${OBRA_ID}`).get().then(s=>{
+  if (!s.exists()) {
+    db.ref(`stats/${OBRA_ID}`).set({ targetVotes: 100, currentVotes: 0 });
+  }
+});
+</script>
+</body>
+</html>

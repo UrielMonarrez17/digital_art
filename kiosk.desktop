@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Obra Colectiva Kiosk
+Comment=Auto-start digital art installation viewer in fullscreen
+Exec=/home/pi/scripts/start-kiosk.sh
+X-GNOME-Autostart-enabled=true
+Hidden=false
+NoDisplay=false
+Terminal=false

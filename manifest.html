@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Generador de Manifest</title>
+<style>
+  body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto;background:#f5f5f5}
+  h2{color:#333;margin-bottom:24px}
+  .form-group{margin-bottom:16px}
+  label{display:block;margin-bottom:4px;font-weight:500;color:#555}
+  input[type="file"],input[type="text"],input[type="number"]{width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:14px}
+  button{background:#4CAF50;color:white;padding:12px 24px;border:none;border-radius:4px;font-size:16px;cursor:pointer;margin-top:8px}
+  button:hover{background:#45a049}
+  #log{background:white;padding:12px;border:1px solid #ddd;border-radius:4px;font-size:12px;white-space:pre-wrap;max-height:200px;overflow-y:auto;margin-top:16px}
+  canvas{display:none}
+  .info{background:#e3f2fd;padding:12px;border-radius:4px;margin-bottom:16px;font-size:14px;color:#1976d2}
+</style>
+</head>
+<body>
+<h2>Generador de Obra Colectiva</h2>
+<div class="info">Sube tu imagen y define cuántos votos necesitas para revelarla completamente.</div>
+<div class="form-group">
+  <label>Imagen:</label>
+  <input type="file" id="file" accept="image/*">
+</div>
+<div class="form-group">
+  <label>ID de la Obra:</label>
+  <input type="text" id="obra" value="obra-demo" placeholder="ej: arte-2026">
+</div>
+<div class="form-group">
+  <label>Total de Votos Esperados:</label>
+  <input type="number" id="pieces" value="1000" min="10" max="10000" placeholder="Número de votos">
+</div>
+<button id="go">Generar & Subir a Firebase</button>
+<pre id="log"></pre>
+<canvas id="cv"></canvas>
+<script>
+(function() {
+  'use strict';
+
+  const CONFIG = {
+    DB_URL: 'https://arte-digital-d704e-default-rtdb.firebaseio.com',
+    HEX_RATIO: 0.866,
+    HEX_VERTICAL_STEP: 0.75,
+    HEX_EXPANSION: 1.15,
+    HEX_EFFICIENCY: 0.85,
+    GRID_SAFETY_FACTOR: 1.2,
+    BOUNDARY_MARGIN: 0.5,
+    IMAGE_QUALITY: 0.92,
+    DEFAULT_WIDTH: 1280,
+    HD_WIDTH: 1920,
+    HD_THRESHOLD: 1920,
+  };
+
+  const elements = {
+    file: document.getElementById('file'),
+    obra: document.getElementById('obra'),
+    log: document.getElementById('log'),
+    cv: document.getElementById('cv'),
+    ctx: document.getElementById('cv').getContext('2d'),
+  };
+
+  function logln(message) {
+    elements.log.textContent += message + '\n';
+  }
+
+  function calculateOptimalDimensions(imgWidth, imgHeight) {
+    const aspect = imgWidth / imgHeight;
+    const isHighRes = imgWidth >= CONFIG.HD_THRESHOLD || imgHeight >= CONFIG.HD_THRESHOLD;
+    const baseWidth = isHighRes ? CONFIG.HD_WIDTH : CONFIG.DEFAULT_WIDTH;
+    return {
+      width: Math.round(baseWidth),
+      height: Math.round(baseWidth / aspect),
+      aspect,
+    };
+  }
+
+  function calculateGridParameters(desiredPieces, aspect) {
+    const columns = Math.max(3, Math.ceil(Math.sqrt(desiredPieces * aspect * CONFIG.GRID_SAFETY_FACTOR)));
+    return { columns };
+  }
+
+  function generateHexagonalTiles(width, height, columns, imgData) {
+    const hexW = width / columns;
+    const hexH = hexW * CONFIG.HEX_RATIO;
+    const verticalStep = hexH * CONFIG.HEX_VERTICAL_STEP;
+    const rows = Math.ceil(height / verticalStep) + 1;
+    
+    logln(`Grid: ${columns} cols × ${rows} rows`);
+    logln(`Hexágono: ${Math.round(hexW)}px × ${Math.round(hexH)}px`);
+    
+    const tiles = [];
+    
+    for (let r = 0; r < rows; r++) {
+      for (let c = -1; c <= columns; c++) {
+        const offset = (r % 2 === 1) ? hexW / 2 : 0;
+        const cx = c * hexW + hexW / 2 + offset;
+        const cy = r * verticalStep + hexH / 2;
+        
+        if (cx < -hexW * CONFIG.BOUNDARY_MARGIN || cx > width + hexW * CONFIG.BOUNDARY_MARGIN) continue;
+        if (cy < -hexH * CONFIG.BOUNDARY_MARGIN || cy > height + hexH * CONFIG.BOUNDARY_MARGIN) continue;
+        
+        const color = sampleColor(cx, cy, hexW, hexH, width, height, imgData);
+        if (!color) continue;
+        
+        const polygon = createHexagonPolygon(cx, cy, hexW, hexH);
+        tiles.push({ type: 'tile', poly: polygon, color, cx, cy });
+      }
+    }
+    
+    return tiles;
+  }
+
+  function sampleColor(cx, cy, hexW, hexH, width, height, imgData) {
+    const sx = Math.min(width - 1, Math.max(0, Math.round(cx)));
+    const sy = Math.min(height - 1, Math.max(0, Math.round(cy)));
+    
+    let R = 0, G = 0, B = 0, count = 0;
+    const rad = Math.floor(Math.min(hexW, hexH) / 4);
+    
+    for (let y = -rad; y <= rad; y++) {
+      for (let x = -rad; x <= rad; x++) {
+        const xx = sx + x, yy = sy + y;
+        if (xx < 0 || yy < 0 || xx >= width || yy >= height) continue;
+        if (x * x + y * y > rad * rad) continue;
+        
+        const i = (yy * width + xx) * 4;
+        R += imgData[i];
+        G += imgData[i + 1];
+        B += imgData[i + 2];
+        count++;
+      }
+    }
+    
+    if (count === 0) return null;
+    
+    R = Math.round(R / count);
+    G = Math.round(G / count);
+    B = Math.round(B / count);
+    
+    return `#${[R, G, B].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+  }
+
+  function createHexagonPolygon(cx, cy, hexW, hexH) {
+    const hw = (hexW / 2) * CONFIG.HEX_EXPANSION;
+    const hh = (hexH / 2) * CONFIG.HEX_EXPANSION;
+    
+    return [
+      [cx, cy - hh],
+      [cx + hw, cy - hh / 2],
+      [cx + hw, cy + hh / 2],
+      [cx, cy + hh],
+      [cx - hw, cy + hh / 2],
+      [cx - hw, cy - hh / 2]
+    ];
+  }
+
+  function shuffleTiles(tiles) {
+    const shuffled = tiles.slice();
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  }
+
+  async function uploadToFirebase(obraId, manifest, desiredPieces) {
+    const manifestUrl = `${CONFIG.DB_URL}/manifest/${obraId}.json`;
+    const statsUrl = `${CONFIG.DB_URL}/stats/${obraId}.json`;
+    
+    await fetch(manifestUrl, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(manifest)
+    });
+    
+    await fetch(statsUrl, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ targetVotes: desiredPieces, currentVotes: 0 })
+    });
+  }
+
+  document.getElementById('go').onclick = async () => {
+    if (!elements.file.files[0]) {
+      alert('Por favor selecciona una imagen');
+      return;
+    }
+    
+    elements.log.textContent = '';
+    logln('Procesando imagen...');
+    
+    const img = new Image();
+    img.onload = async () => {
+      try {
+        const desiredPieces = parseInt(document.getElementById('pieces').value, 10) || 1000;
+        const obraId = elements.obra.value.trim();
+        
+        if (!obraId) {
+          alert('Por favor ingresa un ID de obra');
+          return;
+        }
+        
+        const dims = calculateOptimalDimensions(img.width, img.height);
+        elements.cv.width = dims.width;
+        elements.cv.height = dims.height;
+        elements.ctx.drawImage(img, 0, 0, dims.width, dims.height);
+        
+        const imgData = elements.ctx.getImageData(0, 0, dims.width, dims.height).data;
+        logln(`Dimensiones: ${dims.width}x${dims.height}px`);
+        logln(`Objetivo: mínimo ${desiredPieces} tiles`);
+        
+        const grid = calculateGridParameters(desiredPieces, dims.aspect);
+        const tiles = generateHexagonalTiles(dims.width, dims.height, grid.columns, imgData);
+        
+        logln(`${tiles.length} tiles generados`);
+        
+        const shuffledTiles = shuffleTiles(tiles);
+        logln(`${shuffledTiles.length} tiles en orden aleatorio`);
+        
+        const tilesPerVote = shuffledTiles.length / desiredPieces;
+        logln(`Mapeo: ~${tilesPerVote.toFixed(2)} tiles por voto`);
+        logln(`Voto ${desiredPieces} = 100% completo`);
+        
+        logln('Subiendo a Firebase...');
+        
+        const sourceDataUrl = elements.cv.toDataURL('image/jpeg', CONFIG.IMAGE_QUALITY);
+        const manifest = {
+          meta: { w: dims.width, h: dims.height, mode: 'hex-v2', sourceDataUrl },
+          elements: shuffledTiles
+        };
+        
+        await uploadToFirebase(obraId, manifest, desiredPieces);
+        
+        logln('Configuración completa');
+        logln(`Sistema configurado para ${desiredPieces} votos`);
+        logln(`ID: ${obraId}`);
+        logln('');
+        logln('¡Listo! Abre viewer.html para ver la obra.');
+      } catch (err) {
+        logln(`Error: ${err.message}`);
+        console.error(err);
+      }
+    };
+    
+    img.onerror = () => {
+      logln('Error al cargar la imagen');
+    };
+    
+    img.src = URL.createObjectURL(elements.file.files[0]);
+  };
+})();
+</script>
+</body>
+</html>
