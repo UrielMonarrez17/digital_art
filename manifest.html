@@ -1,39 +1,567 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<meta charset="utf-8">
-<title>Generador de Manifest</title>
-<style>
-  body{font-family:sans-serif;padding:24px;max-width:800px;margin:0 auto;background:#f5f5f5}
-  h2{color:#333;margin-bottom:24px}
-  .form-group{margin-bottom:16px}
-  label{display:block;margin-bottom:4px;font-weight:500;color:#555}
-  input[type="file"],input[type="text"],input[type="number"]{width:100%;padding:8px;border:1px solid #ddd;border-radius:4px;font-size:14px}
-  button{background:#4CAF50;color:white;padding:12px 24px;border:none;border-radius:4px;font-size:16px;cursor:pointer;margin-top:8px}
-  button:hover{background:#45a049}
-  #log{background:white;padding:12px;border:1px solid #ddd;border-radius:4px;font-size:12px;white-space:pre-wrap;max-height:200px;overflow-y:auto;margin-top:16px}
-  canvas{display:none}
-  .info{background:#e3f2fd;padding:12px;border-radius:4px;margin-bottom:16px;font-size:14px;color:#1976d2}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#4f46e5" />
+  <title>Generador de Obra Colectiva</title>
+  <!-- QRCode generator lib -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --primary-light: #eef2ff;
+      --success: #10b981;
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --radius: 16px;
+      --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 540px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 20px;
+      padding-top: 8px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 12px;
+      background: var(--primary-light);
+      color: var(--primary);
+      font-size: 12px;
+      font-weight: 700;
+      border-radius: 9999px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    p.subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .form-group {
+      margin-bottom: 18px;
+    }
+
+    label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .helper {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: normal;
+    }
+
+    /* Upload Zone */
+    .upload-zone {
+      border: 2px dashed #cbd5e1;
+      border-radius: 12px;
+      padding: 24px 16px;
+      text-align: center;
+      background: #f8fafc;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .upload-zone:hover, .upload-zone.dragover {
+      border-color: var(--primary);
+      background: var(--primary-light);
+    }
+
+    .upload-zone input[type="file"] {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .upload-icon {
+      font-size: 36px;
+      margin-bottom: 8px;
+    }
+
+    .upload-title {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .upload-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Preview area */
+    .preview-wrapper {
+      display: none;
+      margin-top: 12px;
+      border-radius: 12px;
+      overflow: hidden;
+      position: relative;
+      background: #000;
+      box-shadow: var(--shadow);
+    }
+
+    .preview-img {
+      width: 100%;
+      max-height: 220px;
+      object-fit: contain;
+      display: block;
+    }
+
+    .preview-info {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(transparent, rgba(0,0,0,0.8));
+      color: #fff;
+      padding: 8px 12px;
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .input-with-button {
+      display: flex;
+      gap: 8px;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      padding: 12px 14px;
+      font-size: 15px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      background: #fff;
+      color: var(--text);
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus, input[type="number"]:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+    }
+
+    .btn-secondary {
+      background: var(--bg);
+      border: 1.5px solid var(--border);
+      color: var(--text);
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: background 0.15s;
+    }
+
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+
+    /* Preset buttons */
+    .preset-chips {
+      display: flex;
+      gap: 6px;
+      margin-top: 8px;
+      flex-wrap: wrap;
+    }
+
+    .chip {
+      background: #f1f5f9;
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .chip:hover, .chip.active {
+      background: var(--primary-light);
+      color: var(--primary);
+      border-color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Main CTA Button */
+    .btn-primary {
+      width: 100%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      padding: 15px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 12px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(79, 70, 229, 0.35);
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Progress bar */
+    .progress-container {
+      display: none;
+      margin-top: 16px;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 10px;
+      background: #e2e8f0;
+      border-radius: 9999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--primary), #818cf8);
+      border-radius: 9999px;
+      transition: width 0.3s ease;
+    }
+
+    .progress-status {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      text-align: center;
+      font-weight: 500;
+    }
+
+    /* Result Card */
+    .result-card {
+      display: none;
+      background: #ffffff;
+      border: 2px solid var(--success);
+      border-radius: var(--radius);
+      padding: 24px 20px;
+      box-shadow: var(--shadow-lg);
+      margin-bottom: 16px;
+      text-align: center;
+      animation: popIn 0.4s ease;
+    }
+
+    @keyframes popIn {
+      0% { opacity: 0; transform: scale(0.95); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .success-icon {
+      width: 48px;
+      height: 48px;
+      background: #dcfce7;
+      color: var(--success);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 26px;
+      margin: 0 auto 12px;
+    }
+
+    .result-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+
+    .result-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .qr-container {
+      display: flex;
+      justify-content: center;
+      margin: 16px 0;
+      padding: 12px;
+      background: #f8fafc;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+    }
+
+    .links-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .btn-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+    }
+
+    .btn-link.primary {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .btn-link.outline {
+      background: #fff;
+      color: var(--text);
+      border: 1.5px solid var(--border);
+    }
+
+    .btn-link.outline:hover {
+      background: #f8fafc;
+      border-color: var(--text);
+    }
+
+    /* Logs accordion */
+    details {
+      margin-top: 12px;
+      text-align: left;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 6px 0;
+      user-select: none;
+    }
+
+    #log {
+      background: #0f172a;
+      color: #38bdf8;
+      padding: 12px;
+      border-radius: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 11px;
+      white-space: pre-wrap;
+      max-height: 140px;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+
+    canvas {
+      display: none;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      background: #0f172a;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 9999px;
+      font-size: 14px;
+      box-shadow: var(--shadow-lg);
+      opacity: 0;
+      transform: translateY(20px);
+      transition: all 0.3s ease;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
 </head>
 <body>
-<h2>Generador de Obra Colectiva</h2>
-<div class="info">Sube tu imagen y define cuántos votos necesitas para revelarla completamente.</div>
-<div class="form-group">
-  <label>Imagen:</label>
-  <input type="file" id="file" accept="image/*">
+
+<div class="container">
+  <header>
+    <div class="badge">Arte Interactivo</div>
+    <h1>Generador de Obra</h1>
+    <p class="subtitle">Sube tu fotografía desde tu teléfono y crea un lienzo hexagonal interactivo en segundos.</p>
+  </header>
+
+  <div class="card">
+    <!-- Image Selector -->
+    <div class="form-group">
+      <label>
+        <span>Fotografía de la Obra</span>
+        <span class="helper">Cámara o Galería</span>
+      </label>
+      
+      <div class="upload-zone" id="dropZone">
+        <input type="file" id="file" accept="image/*">
+        <div class="upload-icon">📷</div>
+        <div class="upload-title">Toca para elegir una foto</div>
+        <div class="upload-desc">JPG, PNG o WEBP (se optimiza automáticamente)</div>
+      </div>
+
+      <div class="preview-wrapper" id="previewWrapper">
+        <img id="previewImg" class="preview-img" alt="Vista previa">
+        <div class="preview-info">
+          <span id="previewDim">0 × 0 px</span>
+          <span id="previewSize">0 KB</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Artwork ID -->
+    <div class="form-group">
+      <label for="obra">
+        <span>ID de la Obra</span>
+        <span class="helper">Identificador único</span>
+      </label>
+      <div class="input-with-button">
+        <input type="text" id="obra" value="obra-demo" placeholder="ej: expo-2026" autocapitalize="none" autocomplete="off">
+        <button type="button" class="btn-secondary" id="btnRandomId">🎲 Aleatorio</button>
+      </div>
+    </div>
+
+    <!-- Votes Target -->
+    <div class="form-group">
+      <label for="pieces">
+        <span>Votos para revelación total</span>
+        <span class="helper" id="votesHelper">1 voto ≈ hexágonos</span>
+      </label>
+      <input type="number" id="pieces" value="500" min="10" max="10000" step="10">
+      <div class="preset-chips">
+        <button type="button" class="chip" data-val="100">100 votos</button>
+        <button type="button" class="chip" data-val="250">250 votos</button>
+        <button type="button" class="chip active" data-val="500">500 votos</button>
+        <button type="button" class="chip" data-val="1000">1,000 votos</button>
+      </div>
+    </div>
+
+    <!-- Submit Button -->
+    <button id="go" class="btn-primary">
+      <span>✨ Generar y Publicar Obra</span>
+    </button>
+
+    <!-- Progress -->
+    <div class="progress-container" id="progressContainer">
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" id="progressBar"></div>
+      </div>
+      <div class="progress-status" id="progressStatus">Preparando imagen...</div>
+    </div>
+
+    <!-- Technical logs accordion -->
+    <details>
+      <summary>Ver registro técnico de consola</summary>
+      <pre id="log"></pre>
+    </details>
+  </div>
+
+  <!-- Success Card -->
+  <div class="result-card" id="resultCard">
+    <div class="success-icon">✓</div>
+    <div class="result-title">¡Obra Creada con Éxito!</div>
+    <div class="result-desc" id="resultSubtitle">Tu obra está lista en Firebase para recibir votos en tiempo real.</div>
+
+    <div class="qr-container">
+      <div id="qrcode"></div>
+    </div>
+
+    <div class="links-grid">
+      <a href="#" id="btnOpenViewer" target="_blank" class="btn-link primary">
+        🖥️ Abrir Visor de la Obra
+      </a>
+      <button type="button" id="btnCopyLink" class="btn-link outline">
+        📋 Copiar Enlace Directo
+      </button>
+      <a href="#" id="btnOpenProduction" target="_blank" class="btn-link outline">
+        🎬 Abrir Modo Exhibición (Kiosk)
+      </a>
+    </div>
+  </div>
 </div>
-<div class="form-group">
-  <label>ID de la Obra:</label>
-  <input type="text" id="obra" value="obra-demo" placeholder="ej: arte-2026">
-</div>
-<div class="form-group">
-  <label>Total de Votos Esperados:</label>
-  <input type="number" id="pieces" value="1000" min="10" max="10000" placeholder="Número de votos">
-</div>
-<button id="go">Generar & Subir a Firebase</button>
-<pre id="log"></pre>
+
 <canvas id="cv"></canvas>
+<div class="toast" id="toast">¡Enlace copiado al portapapeles!</div>
+
 <script>
 (function() {
   'use strict';
@@ -46,28 +574,101 @@
     HEX_EFFICIENCY: 0.85,
     GRID_SAFETY_FACTOR: 1.2,
     BOUNDARY_MARGIN: 0.5,
-    IMAGE_QUALITY: 0.92,
-    DEFAULT_WIDTH: 1280,
+    IMAGE_QUALITY: 0.90,
+    MAX_MOBILE_WIDTH: 1280, // Optimización móvil para procesar sin congelar RAM
     HD_WIDTH: 1920,
     HD_THRESHOLD: 1920,
   };
 
   const elements = {
     file: document.getElementById('file'),
+    dropZone: document.getElementById('dropZone'),
+    previewWrapper: document.getElementById('previewWrapper'),
+    previewImg: document.getElementById('previewImg'),
+    previewDim: document.getElementById('previewDim'),
+    previewSize: document.getElementById('previewSize'),
     obra: document.getElementById('obra'),
+    pieces: document.getElementById('pieces'),
+    btnRandomId: document.getElementById('btnRandomId'),
+    go: document.getElementById('go'),
+    progressContainer: document.getElementById('progressContainer'),
+    progressBar: document.getElementById('progressBar'),
+    progressStatus: document.getElementById('progressStatus'),
     log: document.getElementById('log'),
     cv: document.getElementById('cv'),
     ctx: document.getElementById('cv').getContext('2d'),
+    resultCard: document.getElementById('resultCard'),
+    resultSubtitle: document.getElementById('resultSubtitle'),
+    qrcode: document.getElementById('qrcode'),
+    btnOpenViewer: document.getElementById('btnOpenViewer'),
+    btnOpenProduction: document.getElementById('btnOpenProduction'),
+    btnCopyLink: document.getElementById('btnCopyLink'),
+    toast: document.getElementById('toast'),
   };
+
+  let qrcodeInstance = null;
+  let activeViewerUrl = '';
+
+  function showToast(msg) {
+    elements.toast.textContent = msg;
+    elements.toast.classList.add('show');
+    setTimeout(() => elements.toast.classList.remove('show'), 2500);
+  }
 
   function logln(message) {
     elements.log.textContent += message + '\n';
+    elements.log.scrollTop = elements.log.scrollHeight;
   }
+
+  function setProgress(percent, text) {
+    elements.progressContainer.style.display = 'block';
+    elements.progressBar.style.width = `${percent}%`;
+    elements.progressStatus.textContent = text;
+  }
+
+  // Random ID Generator
+  elements.btnRandomId.addEventListener('click', () => {
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    elements.obra.value = `obra-${randomNum}`;
+  });
+
+  // Preset Chips
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+      elements.pieces.value = chip.getAttribute('data-val');
+    });
+  });
+
+  // Image Preview Handler
+  elements.file.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const sizeKb = Math.round(file.size / 1024);
+    elements.previewSize.textContent = sizeKb > 1024 ? `${(sizeKb/1024).toFixed(1)} MB` : `${sizeKb} KB`;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      elements.previewImg.src = event.target.result;
+      elements.previewWrapper.style.display = 'block';
+      
+      const tempImg = new Image();
+      tempImg.onload = () => {
+        elements.previewDim.textContent = `${tempImg.naturalWidth} × ${tempImg.naturalHeight} px`;
+      };
+      tempImg.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
 
   function calculateOptimalDimensions(imgWidth, imgHeight) {
     const aspect = imgWidth / imgHeight;
-    const isHighRes = imgWidth >= CONFIG.HD_THRESHOLD || imgHeight >= CONFIG.HD_THRESHOLD;
-    const baseWidth = isHighRes ? CONFIG.HD_WIDTH : CONFIG.DEFAULT_WIDTH;
+    // En móviles, limitar para no saturar memoria
+    const maxAllowedWidth = CONFIG.MAX_MOBILE_WIDTH;
+    const baseWidth = Math.min(imgWidth, maxAllowedWidth);
+    
     return {
       width: Math.round(baseWidth),
       height: Math.round(baseWidth / aspect),
@@ -86,7 +687,7 @@
     const verticalStep = hexH * CONFIG.HEX_VERTICAL_STEP;
     const rows = Math.ceil(height / verticalStep) + 1;
     
-    logln(`Grid: ${columns} cols × ${rows} rows`);
+    logln(`Malla: ${columns} columnas × ${rows} filas`);
     logln(`Hexágono: ${Math.round(hexW)}px × ${Math.round(hexH)}px`);
     
     const tiles = [];
@@ -168,62 +769,66 @@
     const manifestUrl = `${CONFIG.DB_URL}/manifest/${obraId}.json`;
     const statsUrl = `${CONFIG.DB_URL}/stats/${obraId}.json`;
     
-    await fetch(manifestUrl, {
+    const resManifest = await fetch(manifestUrl, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(manifest)
     });
+    if (!resManifest.ok) throw new Error('Error al guardar el manifest en Firebase');
     
-    await fetch(statsUrl, {
+    const resStats = await fetch(statsUrl, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ targetVotes: desiredPieces, currentVotes: 0 })
+      body: JSON.stringify({ targetVotes: desiredPieces, currentVotes: 0, lastVoterId: '' })
     });
+    if (!resStats.ok) throw new Error('Error al inicializar las estadísticas en Firebase');
   }
 
-  document.getElementById('go').onclick = async () => {
+  elements.go.onclick = async () => {
     if (!elements.file.files[0]) {
-      alert('Por favor selecciona una imagen');
+      alert('Por favor selecciona o toma una foto primero.');
       return;
     }
     
+    const obraId = elements.obra.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    if (!obraId) {
+      alert('Por favor introduce un ID válido para la obra');
+      return;
+    }
+    elements.obra.value = obraId;
+
+    const desiredPieces = parseInt(elements.pieces.value, 10) || 500;
+    
+    elements.go.disabled = true;
+    elements.resultCard.style.display = 'none';
     elements.log.textContent = '';
-    logln('Procesando imagen...');
+    
+    setProgress(15, 'Procesando imagen...');
+    logln(`Iniciando generación para: ${obraId}`);
     
     const img = new Image();
     img.onload = async () => {
       try {
-        const desiredPieces = parseInt(document.getElementById('pieces').value, 10) || 1000;
-        const obraId = elements.obra.value.trim();
-        
-        if (!obraId) {
-          alert('Por favor ingresa un ID de obra');
-          return;
-        }
-        
+        setProgress(30, 'Optimizando resolución y escala...');
         const dims = calculateOptimalDimensions(img.width, img.height);
         elements.cv.width = dims.width;
         elements.cv.height = dims.height;
         elements.ctx.drawImage(img, 0, 0, dims.width, dims.height);
         
         const imgData = elements.ctx.getImageData(0, 0, dims.width, dims.height).data;
-        logln(`Dimensiones: ${dims.width}x${dims.height}px`);
-        logln(`Objetivo: mínimo ${desiredPieces} tiles`);
+        logln(`Resolución optimizada: ${dims.width} × ${dims.height} px`);
         
+        setProgress(50, 'Generando mosaico hexagonal...');
         const grid = calculateGridParameters(desiredPieces, dims.aspect);
         const tiles = generateHexagonalTiles(dims.width, dims.height, grid.columns, imgData);
+        logln(`${tiles.length} hexágonos creados`);
         
-        logln(`${tiles.length} tiles generados`);
-        
+        setProgress(70, 'Aleatorizando orden de revelación...');
         const shuffledTiles = shuffleTiles(tiles);
-        logln(`${shuffledTiles.length} tiles en orden aleatorio`);
+        const tilesPerVote = (shuffledTiles.length / desiredPieces).toFixed(2);
+        logln(`Mapeo: ~${tilesPerVote} hexágonos por cada voto`);
         
-        const tilesPerVote = shuffledTiles.length / desiredPieces;
-        logln(`Mapeo: ~${tilesPerVote.toFixed(2)} tiles por voto`);
-        logln(`Voto ${desiredPieces} = 100% completo`);
-        
-        logln('Subiendo a Firebase...');
-        
+        setProgress(85, 'Subiendo a Firebase...');
         const sourceDataUrl = elements.cv.toDataURL('image/jpeg', CONFIG.IMAGE_QUALITY);
         const manifest = {
           meta: { w: dims.width, h: dims.height, mode: 'hex-v2', sourceDataUrl },
@@ -232,23 +837,60 @@
         
         await uploadToFirebase(obraId, manifest, desiredPieces);
         
-        logln('Configuración completa');
-        logln(`Sistema configurado para ${desiredPieces} votos`);
-        logln(`ID: ${obraId}`);
-        logln('');
-        logln('¡Listo! Abre viewer.html para ver la obra.');
+        setProgress(100, '¡Completado con éxito!');
+        logln('¡Listo para visualizar en tiempo real!');
+        
+        // Setup Result Card
+        const baseUrl = window.location.href.substring(0, window.location.href.lastIndexOf('/') + 1);
+        activeViewerUrl = `${baseUrl}viewer.html?obra=${encodeURIComponent(obraId)}`;
+        const productionUrl = `${baseUrl}viewer-production.html?obra=${encodeURIComponent(obraId)}`;
+        
+        elements.btnOpenViewer.href = activeViewerUrl;
+        elements.btnOpenProduction.href = productionUrl;
+        elements.resultSubtitle.textContent = `Obra "${obraId}" configurada para ${desiredPieces} votos.`;
+        
+        // Render QR Code
+        elements.qrcode.innerHTML = '';
+        qrcodeInstance = new QRCode(elements.qrcode, {
+          text: activeViewerUrl,
+          width: 160,
+          height: 160,
+          colorDark: '#1e293b',
+          colorLight: '#f8fafc',
+          correctLevel: QRCode.CorrectLevel.M
+        });
+        
+        elements.resultCard.style.display = 'block';
+        elements.resultCard.scrollIntoView({ behavior: 'smooth' });
       } catch (err) {
         logln(`Error: ${err.message}`);
+        alert('Ocurrió un error: ' + err.message);
         console.error(err);
+      } finally {
+        elements.go.disabled = false;
       }
     };
     
     img.onerror = () => {
       logln('Error al cargar la imagen');
+      alert('No se pudo procesar la imagen seleccionada.');
+      elements.go.disabled = false;
     };
     
     img.src = URL.createObjectURL(elements.file.files[0]);
   };
+
+  // Copy Link action
+  elements.btnCopyLink.addEventListener('click', async () => {
+    if (!activeViewerUrl) return;
+    try {
+      await navigator.clipboard.writeText(activeViewerUrl);
+      showToast('¡Enlace del visor copiado!');
+    } catch(e) {
+      prompt('Copia el enlace manualmente:', activeViewerUrl);
+    }
+  });
+
 })();
 </script>
 </body>
