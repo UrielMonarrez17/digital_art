@@ -29,3 +29,6 @@ npm-debug.log*
 # Test files
 test/
 *.test.html
+
+# Codebase memory index (generado por codebase-memory-mcp, no subir a GitHub)
+.codebase-memory/
