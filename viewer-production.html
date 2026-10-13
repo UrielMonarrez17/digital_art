@@ -179,6 +179,7 @@
     notificationQueue: [],
     isDisplayingNotification: false,
     isCleanMode: false,
+    isFirstLoad: true,  // evita notificación falsa al cargar la página
   };
 
   const START_CLEAN = urlParams.get('clean') === 'true' || urlParams.get('clean') === '1' || urlParams.get('pure') === 'true';
@@ -511,7 +512,11 @@
     const newVoteCount = stats.currentVotes || 0;
     const newVoterId = stats.lastVoterId || '';
 
-    if (newVoteCount > state.previousVoteCount && !state.isCleanMode) {
+    if (state.isFirstLoad) {
+      // Primera carga: sincronizar sin mostrar notificación
+      state.previousVoteCount = newVoteCount;
+      state.isFirstLoad = false;
+    } else if (newVoteCount > state.previousVoteCount && !state.isCleanMode) {
       queueVoteNotification(newVoteCount, newVoterId);
     }
 

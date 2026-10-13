@@ -290,6 +290,7 @@
     notificationQueue: [],
     isDisplayingNotification: false,
     isCleanMode: false,
+    isFirstLoad: true,  // evita notificación falsa al cargar la página
   };
 
   let app = null;
@@ -669,8 +670,12 @@
     const newVoteCount = stats.currentVotes || 0;
     const newVoterId = stats.lastVoterId || '';
 
-    // Notificación en tiempo real (solo si NO está en modo limpio)
-    if (newVoteCount > state.previousVoteCount && !state.isCleanMode) {
+    if (state.isFirstLoad) {
+      // Primera carga: sincronizar sin mostrar notificación
+      state.previousVoteCount = newVoteCount;
+      state.isFirstLoad = false;
+    } else if (newVoteCount > state.previousVoteCount && !state.isCleanMode) {
+      // Notificación en tiempo real (solo si NO está en modo limpio)
       queueVoteNotification(newVoteCount, newVoterId);
     }
 
