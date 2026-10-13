@@ -29,6 +29,7 @@
       box-shadow: inset 0 0 0 3px #654321, inset 0 0 30px rgba(0,0,0,0.25);
       pointer-events: none;
       z-index: 50;
+      transition: opacity 0.3s ease;
     }
 
     /* Status & Debug Overlay */
@@ -49,6 +50,7 @@
       gap: 8px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.3);
       user-select: none;
+      cursor: pointer;
     }
 
     .dot {
@@ -95,11 +97,52 @@
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
 
     .btn-ctrl:hover {
       background: rgba(30, 41, 59, 0.95);
       border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .btn-ctrl.btn-clean {
+      background: rgba(37, 99, 235, 0.85);
+      border-color: rgba(59, 130, 246, 0.5);
+    }
+    .btn-ctrl.btn-clean:hover {
+      background: rgba(29, 78, 216, 0.95);
+    }
+
+    #obraSelector {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      max-width: 180px;
+    }
+    #obraSelector:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    #obraSelector option {
+      background: #1e293b;
+      color: #fff;
+    }
+
+    /* MODO LIMPIO / PANTALLA COMPLETA: Oculta indicadores y votos pero CONSERVA el marco de la obra */
+    body.clean-mode #statusBadge,
+    body.clean-mode #debugPanel,
+    body.clean-mode #controls,
+    body.clean-mode #voteNotification,
+    body.clean-mode #voteCounter {
+      display: none !important;
     }
 
     /* Vote Notification */
@@ -169,19 +212,24 @@
   Estado: <span id="dbgStatus">Conectando...</span><br>
   Votos: <span id="dbgVotes">0</span> / <span id="dbgTarget">0</span><br>
   Hexágonos: <span id="dbgRevealed">0</span> / <span id="dbgTotal">0</span><br>
-  Modo Fit: <span id="dbgFit">cover</span>
+  Modo Fit: <span id="dbgFit">cover</span><br>
+  Modo Limpio: <span id="dbgClean">No</span>
 </div>
 
 <div id="controls">
-  <button class="btn-ctrl" id="btnToggleDebug">📊 Info</button>
-  <button class="btn-ctrl" id="simPlus">➕ Voto</button>
-  <button class="btn-ctrl" id="simReset">🔄 Reset</button>
+  <select id="obraSelector" title="Cambiar obra">
+    <option value="">Cargando obras...</option>
+  </select>
+  <button class="btn-ctrl" id="btnToggleDebug">Info</button>
+  <button class="btn-ctrl" id="simPlus">+ Voto</button>
+  <button class="btn-ctrl" id="simReset">Reset</button>
+  <button class="btn-ctrl btn-clean" id="btnCleanMode" title="Pantalla completa sin votos ni indicadores (conserva marco)">Pantalla Completa</button>
 </div>
 
 <div id="artFrame"></div>
 
 <div id="voteNotification">
-  <div>¡Gracias por participar! ✨</div>
+  <div>Gracias por participar!</div>
   <div class="voterId" id="voterIdDisplay"></div>
 </div>
 
@@ -195,6 +243,8 @@
   const urlParams = new URLSearchParams(window.location.search);
   const OBRA_ID = urlParams.get('obra') || 'obra-demo';
   const FIT_MODE = urlParams.get('fit') || 'cover'; // 'cover' o 'contain'
+
+  const START_CLEAN = urlParams.get('clean') === 'true' || urlParams.get('clean') === '1' || urlParams.get('pure') === 'true';
 
   const CONFIG = {
     OBRA_ID,
@@ -239,6 +289,7 @@
     lastRevealedTiles: [],
     notificationQueue: [],
     isDisplayingNotification: false,
+    isCleanMode: false,
   };
 
   let app = null;
@@ -248,6 +299,88 @@
   let highlightGraphics = null;
   let pulseAnimationId = null;
   let highlightTimeoutId = null;
+
+  // Modo Pantalla Completa Limpio (Solo Obra + Marco)
+  const dbgClean = document.getElementById('dbgClean');
+
+  function setCleanMode(enabled) {
+    state.isCleanMode = enabled;
+    document.body.classList.toggle('clean-mode', enabled);
+    if (dbgClean) dbgClean.textContent = enabled ? 'Si' : 'No';
+    onResize();
+  }
+
+  async function toggleFullscreenClean() {
+    const shouldEnable = !state.isCleanMode;
+    setCleanMode(shouldEnable);
+
+    try {
+      if (shouldEnable) {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } else {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.log('Fullscreen no soportado o bloqueado por el navegador:', err);
+    }
+  }
+
+  const btnCleanMode = document.getElementById('btnCleanMode');
+  if (btnCleanMode) {
+    btnCleanMode.addEventListener('click', toggleFullscreenClean);
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'f' || e.key === 'F') {
+      toggleFullscreenClean();
+    } else if (e.key === 'Escape' && state.isCleanMode) {
+      setCleanMode(false);
+    }
+  });
+
+  // Doble clic o doble toque en la pantalla para salir o alternar
+  document.addEventListener('dblclick', () => {
+    toggleFullscreenClean();
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && state.isCleanMode) {
+      setCleanMode(false);
+    }
+    onResize();
+  });
+
+  // Selector de obras disponibles
+  function loadObraSelector() {
+    const sel = document.getElementById('obraSelector');
+    if (!sel) return;
+    db.ref('manifest').once('value').then(snap => {
+      const obras = snap.val();
+      if (!obras) {
+        sel.innerHTML = '<option value="">Sin obras disponibles</option>';
+        return;
+      }
+      const ids = Object.keys(obras).sort();
+      sel.innerHTML = ids.map(id => {
+        const label = obras[id]?.meta?.name || id;
+        const selected = id === CONFIG.OBRA_ID ? ' selected' : '';
+        return `<option value="${id}"${selected}>${label}</option>`;
+      }).join('');
+    }).catch(() => {
+      sel.innerHTML = '<option value="">Error cargando obras</option>';
+    });
+
+    sel.addEventListener('change', () => {
+      if (!sel.value || sel.value === CONFIG.OBRA_ID) return;
+      const params = new URLSearchParams(window.location.search);
+      params.set('obra', sel.value);
+      window.location.search = params.toString();
+    });
+  }
 
   // Toggle debug info
   const debugPanel = document.getElementById('debugPanel');
@@ -272,7 +405,7 @@
     document.getElementById('dbgTotal').textContent = state.tileElements.length;
   }
 
-  // Cola de notificaciones fluida sin solapamientos
+  // Cola de notificaciones fluida
   function queueVoteNotification(voteNumber, voterId = '') {
     state.notificationQueue.push({ voteNumber, voterId });
     processNotificationQueue();
@@ -306,7 +439,6 @@
     setTimeout(() => {
       notification.style.display = 'none';
       state.isDisplayingNotification = false;
-      // Procesar siguiente voto si hay ráfaga
       processNotificationQueue();
     }, CONFIG.TIMING.VOTE_NOTIFICATION_DISPLAY);
   }
@@ -383,13 +515,17 @@
 
       updateStatus('En línea', 'connected');
       revealTiles(true);
+
+      if (START_CLEAN) {
+        setCleanMode(true);
+      }
     }).catch(err => {
       console.error('Error cargando textura de imagen:', err);
       updateStatus('Error cargando imagen', 'error');
     });
   }
 
-  // RENDER INCREMENTAL OPTIMIZADO: No redibuja miles de polígonos desde cero cada voto
+  // RENDER INCREMENTAL OPTIMIZADO
   function revealTiles(forceFullRedraw = false) {
     if (!imageSprite || !maskGraphics || !state.manifest || !app) return;
 
@@ -402,7 +538,6 @@
 
     const { scale, offsetX, offsetY } = getTransformParams();
 
-    // Si los votos se reiniciaron a 0 o menor que lo revelado, o en cambio de tamaño de pantalla
     if (forceFullRedraw || tilesToReveal < state.revealedCount) {
       maskGraphics.clear();
       state.revealedCount = 0;
@@ -504,7 +639,6 @@
       imageSprite.height = imgH * scale;
       imageSprite.x = offsetX;
       imageSprite.y = offsetY;
-      // En redimensión de pantalla, redibujar la máscara con las nuevas coordenadas
       revealTiles(true);
     }
   }
@@ -524,7 +658,7 @@
     });
   }
 
-  // Listener en tiempo real de votos (sin peticiones duplicadas)
+  // Listener en tiempo real de votos
   db.ref(`stats/${CONFIG.OBRA_ID}`).on('value', snap => {
     const stats = snap.val() || {};
 
@@ -535,8 +669,8 @@
     const newVoteCount = stats.currentVotes || 0;
     const newVoterId = stats.lastVoterId || '';
 
-    // Notificación en tiempo real sin setTimeout ni fetch redundante
-    if (newVoteCount > state.previousVoteCount) {
+    // Notificación en tiempo real (solo si NO está en modo limpio)
+    if (newVoteCount > state.previousVoteCount && !state.isCleanMode) {
       queueVoteNotification(newVoteCount, newVoterId);
     }
 
@@ -572,6 +706,7 @@
 
   window.addEventListener('resize', onResize);
   initializePixiApp();
+  loadObraSelector();
 })();
 </script>
 </body>

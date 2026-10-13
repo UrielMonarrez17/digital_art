@@ -29,6 +29,7 @@
       box-shadow: inset 0 0 0 3px #654321, inset 0 0 35px rgba(0,0,0,0.3);
       pointer-events: none;
       z-index: 50;
+      transition: opacity 0.3s ease;
     }
 
     #voteNotification {
@@ -81,14 +82,50 @@
       50% { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
       100% { transform: translate(-50%, -50%) scale(1); opacity: 0.9; }
     }
+
+    /* MODO LIMPIO: Oculta alertas de votos pero CONSERVA el marco café */
+    body.clean-mode #voteNotification,
+    body.clean-mode #voteCounter,
+    body.clean-mode #obraSelector {
+      display: none !important;
+    }
+
+    #obraSelector {
+      position: fixed;
+      top: 16px;
+      right: 16px;
+      z-index: 60;
+      background: rgba(0, 0, 0, 0.75);
+      backdrop-filter: blur(8px);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 8px 10px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      max-width: 200px;
+    }
+    #obraSelector:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+    }
+    #obraSelector option {
+      background: #111;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
 
 <div id="artFrame"></div>
 
+<select id="obraSelector" title="Cambiar obra">
+  <option value="">Cargando obras...</option>
+</select>
+
 <div id="voteNotification">
-  <div>¡Gracias por participar! ✨</div>
+  <div>Gracias por participar!</div>
   <div class="voterId" id="voterIdDisplay"></div>
 </div>
 
@@ -141,7 +178,10 @@
     lastRevealedTiles: [],
     notificationQueue: [],
     isDisplayingNotification: false,
+    isCleanMode: false,
   };
+
+  const START_CLEAN = urlParams.get('clean') === 'true' || urlParams.get('clean') === '1' || urlParams.get('pure') === 'true';
 
   let app = null;
   let container = null;
@@ -150,6 +190,78 @@
   let highlightGraphics = null;
   let pulseAnimationId = null;
   let highlightTimeoutId = null;
+
+  function setCleanMode(enabled) {
+    state.isCleanMode = enabled;
+    document.body.classList.toggle('clean-mode', enabled);
+    onResize();
+  }
+
+  async function toggleFullscreenClean() {
+    const shouldEnable = !state.isCleanMode;
+    setCleanMode(shouldEnable);
+
+    try {
+      if (shouldEnable) {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen();
+        }
+      } else {
+        if (document.fullscreenElement && document.exitFullscreen) {
+          await document.exitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.log('Fullscreen error:', err);
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'f' || e.key === 'F') {
+      toggleFullscreenClean();
+    } else if (e.key === 'Escape' && state.isCleanMode) {
+      setCleanMode(false);
+    }
+  });
+
+  document.addEventListener('dblclick', () => {
+    toggleFullscreenClean();
+  });
+
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement && state.isCleanMode) {
+      setCleanMode(false);
+    }
+    onResize();
+  });
+
+  // Selector de obras disponibles
+  function loadObraSelector() {
+    const sel = document.getElementById('obraSelector');
+    if (!sel) return;
+    db.ref('manifest').once('value').then(snap => {
+      const obras = snap.val();
+      if (!obras) {
+        sel.innerHTML = '<option value="">Sin obras disponibles</option>';
+        return;
+      }
+      const ids = Object.keys(obras).sort();
+      sel.innerHTML = ids.map(id => {
+        const label = obras[id]?.meta?.name || id;
+        const selected = id === CONFIG.OBRA_ID ? ' selected' : '';
+        return `<option value="${id}"${selected}>${label}</option>`;
+      }).join('');
+    }).catch(() => {
+      sel.innerHTML = '<option value="">Error cargando obras</option>';
+    });
+
+    sel.addEventListener('change', () => {
+      if (!sel.value || sel.value === CONFIG.OBRA_ID) return;
+      const params = new URLSearchParams(window.location.search);
+      params.set('obra', sel.value);
+      window.location.search = params.toString();
+    });
+  }
 
   function queueVoteNotification(voteNumber, voterId = '') {
     state.notificationQueue.push({ voteNumber, voterId });
@@ -256,6 +368,10 @@
       state.revealedCount = 0;
 
       revealTiles(true);
+
+      if (START_CLEAN) {
+        setCleanMode(true);
+      }
     }).catch(err => {
       console.error('Error cargando textura:', err);
     });
@@ -395,7 +511,7 @@
     const newVoteCount = stats.currentVotes || 0;
     const newVoterId = stats.lastVoterId || '';
 
-    if (newVoteCount > state.previousVoteCount) {
+    if (newVoteCount > state.previousVoteCount && !state.isCleanMode) {
       queueVoteNotification(newVoteCount, newVoterId);
     }
 
@@ -408,6 +524,7 @@
 
   window.addEventListener('resize', onResize);
   initializePixiApp();
+  loadObraSelector();
 })();
 </script>
 </body>

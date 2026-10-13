@@ -356,12 +356,33 @@
       margin-bottom: 16px;
     }
 
+    .qr-box {
+      background: #f8fafc;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+
+    .qr-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .qr-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
     .qr-container {
       display: flex;
       justify-content: center;
-      margin: 16px 0;
+      margin: 8px 0;
       padding: 12px;
-      background: #f8fafc;
+      background: #ffffff;
       border-radius: 12px;
       border: 1px solid var(--border);
     }
@@ -400,6 +421,28 @@
     .btn-link.outline:hover {
       background: #f8fafc;
       border-color: var(--text);
+    }
+
+    .btn-link.btn-green {
+      color: #16a34a;
+      border-color: #bbf7d0;
+    }
+
+    .btn-link.btn-green:hover {
+      background: #f0fdf4;
+      border-color: #16a34a;
+    }
+
+    .links-divider {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      padding: 4px 0 2px;
+      border-top: 1px solid var(--border);
+      text-align: left;
+      margin-top: 4px;
     }
 
     /* Logs accordion */
@@ -496,7 +539,7 @@
       </label>
       <div class="input-with-button">
         <input type="text" id="obra" value="obra-demo" placeholder="ej: expo-2026" autocapitalize="none" autocomplete="off">
-        <button type="button" class="btn-secondary" id="btnRandomId">🎲 Aleatorio</button>
+        <button type="button" class="btn-secondary" id="btnRandomId">Aleatorio</button>
       </div>
     </div>
 
@@ -515,9 +558,26 @@
       </div>
     </div>
 
+    <!-- Enlaces opcionales de Google Forms y Excel/Sheets -->
+    <div class="form-group">
+      <label for="formUrl">
+        <span>Cuestionario de Google</span>
+        <span class="helper">Enlace para registrar votantes</span>
+      </label>
+      <input type="text" id="formUrl" value="https://docs.google.com/forms/d/e/1FAIpQLSciUr1X51eZeZ6RVYNRhog-TxOCmXjzbog0QgMVwyz94mNkaA/viewform" placeholder="https://forms.gle/... o https://docs.google.com/forms/..." autocomplete="off">
+    </div>
+
+    <div class="form-group">
+      <label for="sheetsUrl">
+        <span>Hoja de Cálculo (Excel / Sheets)</span>
+        <span class="helper">Enlace para ver respuestas registradas</span>
+      </label>
+      <input type="text" id="sheetsUrl" value="https://docs.google.com/spreadsheets/d/18RjcVEUxpdqSEAA8QcXsthhEcGHRrnbCAs4u2cMDKvU/edit" placeholder="https://docs.google.com/spreadsheets/..." autocomplete="off">
+    </div>
+
     <!-- Submit Button -->
     <button id="go" class="btn-primary">
-      <span>✨ Generar y Publicar Obra</span>
+      <span>Generar y Publicar Obra</span>
     </button>
 
     <!-- Progress -->
@@ -537,23 +597,38 @@
 
   <!-- Success Card -->
   <div class="result-card" id="resultCard">
-    <div class="success-icon">✓</div>
-    <div class="result-title">¡Obra Creada con Éxito!</div>
-    <div class="result-desc" id="resultSubtitle">Tu obra está lista en Firebase para recibir votos en tiempo real.</div>
+    <div class="success-icon">&#10003;</div>
+    <div class="result-title">Obra Creada con Exito</div>
+    <div class="result-desc" id="resultSubtitle">Tu obra esta lista en Firebase para recibir votos en tiempo real.</div>
 
-    <div class="qr-container">
-      <div id="qrcode"></div>
+    <div class="qr-box">
+      <div class="qr-title">QR para Votantes (Registro + ID de Obra)</div>
+      <div class="qr-desc">Escanea con tu celular para registrarte y emitir tu voto:</div>
+      <div class="qr-container">
+        <div id="qrcodeForm"></div>
+      </div>
+      <button type="button" id="btnCopyFormLink" class="btn-link outline" style="margin-top: 8px;">
+        Copiar Enlace de Votacion con ID
+      </button>
     </div>
 
+    <div class="links-divider">Visor de la Obra</div>
     <div class="links-grid">
       <a href="#" id="btnOpenViewer" target="_blank" class="btn-link primary">
-        🖥️ Abrir Visor de la Obra
+        Abrir Visor de la Obra
       </a>
       <button type="button" id="btnCopyLink" class="btn-link outline">
-        📋 Copiar Enlace Directo
+        Copiar Enlace del Visor
       </button>
       <a href="#" id="btnOpenProduction" target="_blank" class="btn-link outline">
-        🎬 Abrir Modo Exhibición (Kiosk)
+        Abrir Modo Exhibicion (Kiosk)
+      </a>
+      <div class="links-divider">Herramientas de Registro</div>
+      <a href="#" id="btnOpenSheets" target="_blank" class="btn-link outline btn-green">
+        Ver Hoja de Calculo (Excel)
+      </a>
+      <a href="#" id="btnOpenForms" target="_blank" class="btn-link outline btn-green">
+        Abrir Cuestionario de Registro
       </a>
     </div>
   </div>
@@ -590,6 +665,8 @@
     obra: document.getElementById('obra'),
     pieces: document.getElementById('pieces'),
     btnRandomId: document.getElementById('btnRandomId'),
+    formUrl: document.getElementById('formUrl'),
+    sheetsUrl: document.getElementById('sheetsUrl'),
     go: document.getElementById('go'),
     progressContainer: document.getElementById('progressContainer'),
     progressBar: document.getElementById('progressBar'),
@@ -599,15 +676,19 @@
     ctx: document.getElementById('cv').getContext('2d'),
     resultCard: document.getElementById('resultCard'),
     resultSubtitle: document.getElementById('resultSubtitle'),
-    qrcode: document.getElementById('qrcode'),
+    qrcodeForm: document.getElementById('qrcodeForm'),
     btnOpenViewer: document.getElementById('btnOpenViewer'),
     btnOpenProduction: document.getElementById('btnOpenProduction'),
+    btnOpenSheets: document.getElementById('btnOpenSheets'),
+    btnOpenForms: document.getElementById('btnOpenForms'),
     btnCopyLink: document.getElementById('btnCopyLink'),
+    btnCopyFormLink: document.getElementById('btnCopyFormLink'),
     toast: document.getElementById('toast'),
   };
 
-  let qrcodeInstance = null;
+  let qrcodeFormInstance = null;
   let activeViewerUrl = '';
+  let activeFormPrefilledUrl = '';
 
   function showToast(msg) {
     elements.toast.textContent = msg;
@@ -625,6 +706,14 @@
     elements.progressBar.style.width = `${percent}%`;
     elements.progressStatus.textContent = text;
   }
+
+  // Cargar enlaces guardados de localStorage si existen
+  try {
+    const savedForm = localStorage.getItem('art_form_url');
+    const savedSheets = localStorage.getItem('art_sheets_url');
+    if (savedForm) elements.formUrl.value = savedForm;
+    if (savedSheets) elements.sheetsUrl.value = savedSheets;
+  } catch(e) {}
 
   // Random ID Generator
   elements.btnRandomId.addEventListener('click', () => {
@@ -847,16 +936,44 @@
         
         elements.btnOpenViewer.href = activeViewerUrl;
         elements.btnOpenProduction.href = productionUrl;
+
+        // Configurar enlaces a Google Sheets y Google Forms
+        const curFormUrl = elements.formUrl.value.trim();
+        const curSheetsUrl = elements.sheetsUrl.value.trim();
+
+        // Construir enlace de Google Forms pre-llenado con el ID de la obra
+        const FORM_BASE = "https://docs.google.com/forms/d/e/1FAIpQLSciUr1X51eZeZ6RVYNRhog-TxOCmXjzbog0QgMVwyz94mNkaA/viewform";
+        const ENTRY_ID_OBRA = "entry.1476865143";
+        activeFormPrefilledUrl = `${FORM_BASE}?usp=pp_url&${ENTRY_ID_OBRA}=${encodeURIComponent(obraId)}`;
+
+        if (curFormUrl) {
+          try { localStorage.setItem('art_form_url', curFormUrl); } catch(e) {}
+          elements.btnOpenForms.href = activeFormPrefilledUrl;
+          elements.btnOpenForms.style.display = 'flex';
+        } else {
+          elements.btnOpenForms.href = activeFormPrefilledUrl;
+          elements.btnOpenForms.style.display = 'flex';
+        }
+
+        if (curSheetsUrl) {
+          try { localStorage.setItem('art_sheets_url', curSheetsUrl); } catch(e) {}
+          elements.btnOpenSheets.href = curSheetsUrl;
+          elements.btnOpenSheets.style.display = 'flex';
+        } else {
+          elements.btnOpenSheets.href = 'https://docs.google.com/spreadsheets/d/18RjcVEUxpdqSEAA8QcXsthhEcGHRrnbCAs4u2cMDKvU/edit';
+          elements.btnOpenSheets.style.display = 'flex';
+        }
+
         elements.resultSubtitle.textContent = `Obra "${obraId}" configurada para ${desiredPieces} votos.`;
         
-        // Render QR Code
-        elements.qrcode.innerHTML = '';
-        qrcodeInstance = new QRCode(elements.qrcode, {
-          text: activeViewerUrl,
-          width: 160,
-          height: 160,
+        // Render QR Code para Votantes (abre el formulario con la obra pre-llenada)
+        elements.qrcodeForm.innerHTML = '';
+        qrcodeFormInstance = new QRCode(elements.qrcodeForm, {
+          text: activeFormPrefilledUrl,
+          width: 170,
+          height: 170,
           colorDark: '#1e293b',
-          colorLight: '#f8fafc',
+          colorLight: '#ffffff',
           correctLevel: QRCode.CorrectLevel.M
         });
         
@@ -880,14 +997,24 @@
     img.src = URL.createObjectURL(elements.file.files[0]);
   };
 
-  // Copy Link action
+  // Copy Link actions
   elements.btnCopyLink.addEventListener('click', async () => {
     if (!activeViewerUrl) return;
     try {
       await navigator.clipboard.writeText(activeViewerUrl);
-      showToast('¡Enlace del visor copiado!');
+      showToast('Enlace del visor copiado!');
     } catch(e) {
       prompt('Copia el enlace manualmente:', activeViewerUrl);
+    }
+  });
+
+  elements.btnCopyFormLink.addEventListener('click', async () => {
+    if (!activeFormPrefilledUrl) return;
+    try {
+      await navigator.clipboard.writeText(activeFormPrefilledUrl);
+      showToast('Enlace del formulario con ID copiado!');
+    } catch(e) {
+      prompt('Copia el enlace manualmente:', activeFormPrefilledUrl);
     }
   });
 
