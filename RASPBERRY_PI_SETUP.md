@@ -209,7 +209,7 @@ document.getElementById('simReset').onclick = ...
 
 ## Step 6: Google Forms Integration
 
-**Good News:** The Google Forms integration already works! No Pi configuration needed.
+The viewers listen to `stats/<obraId>` in Firebase. Install the following script in Google Forms and configure its trigger; the deployed script is managed outside this repository.
 
 ### How It Works:
 1. **Google Forms** → Collects votes with voter IDs
@@ -221,13 +221,19 @@ document.getElementById('simReset').onclick = ...
 ### Setup Apps Script (Do this on your laptop):
 ```javascript
 function onFormSubmit(e) {
-  var voterId = e.values[1]; // Adjust index for your form
+  // Google Forms trigger: e.response (e.values belongs to Sheets triggers).
+  var nameQuestion = 'Nombre'; // Exact title of the name question in your form
+  var answer = e.response.getItemResponses().find(function(item) {
+    return item.getItem().getTitle() === nameQuestion;
+  });
+  var voterName = answer ? String(answer.getResponse()).trim() : '';
+  if (!voterName) throw new Error('Missing answer for question: ' + nameQuestion);
   var obraId = 'obra-demo'; // Match your OBRA_ID
   var url = 'https://arte-digital-d704e-default-rtdb.firebaseio.com/stats/' + obraId + '.json';
   
   // Get current votes
   var response = UrlFetchApp.fetch(url);
-  var data = JSON.parse(response.getContentText());
+  var data = JSON.parse(response.getContentText()) || {};
   var currentVotes = (data.currentVotes || 0) + 1;
   
   // Update Firebase
@@ -236,13 +242,17 @@ function onFormSubmit(e) {
     contentType: 'application/json',
     payload: JSON.stringify({
       currentVotes: currentVotes,
-      lastVoterId: voterId
+      lastVoterName: voterName
     })
   });
 }
 ```
 
-Set trigger: **Form → On form submit → Run onFormSubmit**
+Set one installed trigger: **Form → On form submit → Run onFormSubmit**. Set `nameQuestion` to the exact title of your name question and `obraId` to the `?obra=...` value used by the viewer. Test by submitting the form, not by running the function manually.
+
+The count and name must be sent in the same PATCH so the viewer receives them together. The viewer shows **¡Gracias por votar!** and the name for 2.2 seconds, including in clean/fullscreen mode. It ignores existing votes at startup and queues new notifications. Older integrations using `lastVoterId` remain supported.
+
+See [Google Apps Script event objects](https://developers.google.com/apps-script/guides/triggers/events) for the distinction between Forms and Sheets triggers.
 
 ---
 

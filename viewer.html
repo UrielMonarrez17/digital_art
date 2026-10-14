@@ -136,11 +136,10 @@
       color: #fff;
     }
 
-    /* MODO LIMPIO / PANTALLA COMPLETA: Oculta indicadores y votos pero CONSERVA el marco de la obra */
+    /* MODO LIMPIO / PANTALLA COMPLETA: Oculta controles y contador; conserva el agradecimiento */
     body.clean-mode #statusBadge,
     body.clean-mode #debugPanel,
     body.clean-mode #controls,
-    body.clean-mode #voteNotification,
     body.clean-mode #voteCounter {
       display: none !important;
     }
@@ -162,6 +161,10 @@
       display: none;
       animation: votePopIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
       text-align: center;
+      box-sizing: border-box;
+      max-width: calc(100vw - 48px);
+      overflow-wrap: anywhere;
+      pointer-events: none;
       border: 1px solid rgba(255,255,255,0.25);
     }
 
@@ -223,13 +226,13 @@
   <button class="btn-ctrl" id="btnToggleDebug">Info</button>
   <button class="btn-ctrl" id="simPlus">+ Voto</button>
   <button class="btn-ctrl" id="simReset">Reset</button>
-  <button class="btn-ctrl btn-clean" id="btnCleanMode" title="Pantalla completa sin votos ni indicadores (conserva marco)">Pantalla Completa</button>
+  <button class="btn-ctrl btn-clean" id="btnCleanMode" title="Pantalla completa con agradecimientos (conserva marco)">Pantalla Completa</button>
 </div>
 
 <div id="artFrame"></div>
 
-<div id="voteNotification">
-  <div>Gracias por participar!</div>
+<div id="voteNotification" role="status" aria-live="polite" aria-atomic="true">
+  <div>¡Gracias por votar!</div>
   <div class="voterId" id="voterIdDisplay"></div>
 </div>
 
@@ -301,7 +304,7 @@
   let pulseAnimationId = null;
   let highlightTimeoutId = null;
 
-  // Modo Pantalla Completa Limpio (Solo Obra + Marco)
+  // Modo Pantalla Completa Limpio (Obra + Marco + Agradecimiento)
   const dbgClean = document.getElementById('dbgClean');
 
   function setCleanMode(enabled) {
@@ -423,7 +426,7 @@
     const voterIdDisplay = document.getElementById('voterIdDisplay');
 
     if (voterId) {
-      voterIdDisplay.textContent = `ID: ${voterId}`;
+      voterIdDisplay.textContent = voterId;
       voterIdDisplay.style.display = 'block';
     } else {
       voterIdDisplay.style.display = 'none';
@@ -668,14 +671,15 @@
     }
 
     const newVoteCount = stats.currentVotes || 0;
-    const newVoterId = stats.lastVoterId || '';
+    // lastVoterId mantiene compatibilidad con la integración anterior.
+    const newVoterId = String(stats.lastVoterName || stats.lastVoterId || '').trim();
 
     if (state.isFirstLoad) {
       // Primera carga: sincronizar sin mostrar notificación
       state.previousVoteCount = newVoteCount;
       state.isFirstLoad = false;
-    } else if (newVoteCount > state.previousVoteCount && !state.isCleanMode) {
-      // Notificación en tiempo real (solo si NO está en modo limpio)
+    } else if (newVoteCount > state.previousVoteCount) {
+      // Notificación en tiempo real, también en pantalla completa
       queueVoteNotification(newVoteCount, newVoterId);
     }
 
@@ -701,12 +705,13 @@
     const testVoterId = `TEST-${Math.floor(1000 + Math.random() * 9000)}`;
     db.ref(`stats/${CONFIG.OBRA_ID}`).update({ 
       currentVotes: nextVote,
+      lastVoterName: 'Participante de prueba',
       lastVoterId: testVoterId
     });
   };
 
   document.getElementById('simReset').onclick = () => {
-    db.ref(`stats/${CONFIG.OBRA_ID}`).update({ currentVotes: 0, lastVoterId: '' });
+    db.ref(`stats/${CONFIG.OBRA_ID}`).update({ currentVotes: 0, lastVoterId: '', lastVoterName: '' });
   };
 
   window.addEventListener('resize', onResize);
